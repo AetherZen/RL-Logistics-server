@@ -6,12 +6,24 @@ const FormSchema = new mongoose.Schema(
     bookingId: {
       type: String,
       trim: true,
-      required: true,
+      required: [true, "Booking ID is required"],
+      validate: {
+        validator: function(v) {
+          return v != null && v.length > 0;
+        },
+        message: props => `${props.value} is not a valid Booking ID`
+      }
     },
-    formLink: {
+    link: {
       type: String,
       trim: true,
-      required: true,
+      required: [true, "Link is required"],
+      validate: {
+        validator: function(v) {
+          return v != null && v.length > 0;
+        },
+        message: props => `${props.value} is not a valid link`
+      }
     },
   },
   {
@@ -35,22 +47,22 @@ const ClientSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: [true, "Please provide name"],
-      maxlength: 50,
+      required: true,
       minlength: 3,
+      maxlength: 50,
     },
     email: {
       type: String,
-      required: [true, "Please provide email"],
+      required: true,
       match: [
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         "Please provide a valid email",
       ],
       unique: true,
     },
     phone: {
       type: String,
-      required: [true, "Please provide phone number"],
+      required: true,
       trim: true,
       unique: true,
     },
@@ -64,27 +76,26 @@ const ClientSchema = new mongoose.Schema(
       enum: ["customer", "supplier"],
       default: "customer",
     },
-    otp: {
-      type: String,
-    },
-    otp_expiry: {
-      // otp will expire after 4 minutes
-      type: Date,
-    },
-    formLink: {
-      type: [FormSchema],
-    },
+    otp: String,
+    otp_expiry: Date, // otp will expire after 4 minutes
+    formLink: [FormSchema],
   },
   { timestamps: true, versionKey: false }
 );
 
 // middleware to generate unique id before saving client
+// Improved middleware
 ClientSchema.pre("save", async function (next) {
-  let count = await Client.countDocuments();
-  count = count + 1;
-  this.userId =
-    (this.role === "supplier" ? "S" : "C") + count.toString().padStart(4, "0");
-  next();
-});
+    if (!this.userId) {
+      try {
+        const count = await this.constructor.countDocuments();
+        this.userId =
+          (this.role === "supplier" ? "S" : "C") + (count + 1).toString().padStart(4, "0");
+      } catch (error) {
+        return next(error);
+      }
+    }
+    next();
+  });
 
 module.exports = mongoose.model("Client", ClientSchema);
