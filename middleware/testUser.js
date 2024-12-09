@@ -6,5 +6,3 @@ exports.testUser = (req, res, next) => {
   }
   next();
 };
-
-
