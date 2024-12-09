@@ -1,9 +1,8 @@
-const express =require("express");
+const express = require('express');
 const router = express.Router();
 // middlewares
-const {authenticated,admin}= require("../middleware/authentication.js") ;
-const {testUser}= require("../middleware/testUser.js") ;
-
+const { authenticate, authorizeAdmin } = require('../middleware/authentication.js');
+const { testUser } = require('../middleware/testUser.js');
 
 // *************controllers************
 const {
@@ -15,19 +14,17 @@ const {
   updateProfile,
   getAllUsers,
   updateRole,
-} =require("../controllers/auth.js");
-
+} = require('../controllers/auth.js');
 
 // ***********navigate way***************
-router.post("/register", register);
-router.post("/login", login);
-router.get("/login-check", authenticated, isLoginCheck);
-router.get("/admin-check", authenticated, admin,isAdminCheck);
-router.put("/profile", authenticated,testUser, updateProfile); //logged in but if test user then can't update profile
-router.get("/secret", authenticated, admin, secret); // testing
-router.get("/all-users", authenticated, admin, getAllUsers);   // get all users
-router.put("/admin/update-role", authenticated, admin, updateRole);  //change user role
-
+router.post('/register', register);
+router.post('/login', login);
+router.get('/login-check', authenticate, isLoginCheck);
+router.get('/admin-check', authenticate, authorizeAdmin, isAdminCheck);
+router.put('/profile', authenticate, testUser, updateProfile); //logged in but if test user then can't update profile
+router.get('/secret', authenticate, authorizeAdmin, secret); // testing
+router.get('/all-users', authenticate, authorizeAdmin, getAllUsers); // get all users
+router.put('/admin/update-role', authenticate, authorizeAdmin, updateRole); //change user role
 
 // ***********export default****************
-module.exports= router;
+module.exports = router;
