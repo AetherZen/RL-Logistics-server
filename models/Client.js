@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 
 // FormSchema
 const FormSchema = new mongoose.Schema(
@@ -78,7 +79,7 @@ const ClientSchema = new mongoose.Schema(
     },
     otp: String,
     otp_expiry: Date, // otp will expire after 4 minutes
-    formLink: [FormSchema],
+    forms: [FormSchema],
   },
   { timestamps: true, versionKey: false }
 );
@@ -86,16 +87,31 @@ const ClientSchema = new mongoose.Schema(
 // middleware to generate unique id before saving client
 // Improved middleware
 ClientSchema.pre("save", async function (next) {
-    if (!this.userId) {
+    // Only generate userId if it doesn't exist and is not being modified
+    if (!this.userId || this.isNew) {
       try {
-        const count = await this.constructor.countDocuments();
-        this.userId =
-          (this.role === "supplier" ? "S" : "C") + (count + 1).toString().padStart(4, "0");
+        // Only count and generate if userId is not already set
+        if (!this.userId) {
+          const count = await this.constructor.countDocuments();
+          this.userId =
+            (this.role === "supplier" ? "S" : "C") + (count + 1).toString().padStart(4, "0");
+        }
       } catch (error) {
         return next(error);
       }
     }
     next();
   });
+
+// Creating JWT token method
+ClientSchema.methods.createJWT = function () {
+  return jwt.sign(
+    { _id: this._id }, // Include userId in the token
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_LIFETIME,
+    }
+  );
+};
 
 module.exports = mongoose.model("Client", ClientSchema);

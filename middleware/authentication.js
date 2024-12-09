@@ -28,7 +28,7 @@ exports.authenticated = async (req, res, next) => {
 exports.admin = async (req, res, next) => {
 
     const user = await User.findById(req.user._id);
-    if (user.role !== 1) {
+    if (user.role !== 'admin') {
       throw new UnauthenticatedError('Admin resource. Access denied');
     } else {
       next();
