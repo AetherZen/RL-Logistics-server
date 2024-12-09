@@ -7,7 +7,6 @@ exports.register = async (req, res) => {
 
   const { name, email, password } = req.body;
   if (!name.trim()) {
-    // return res.json({ error: "Name is required" });
     throw new BadRequestError('Please provide name')
   }
   if (!email) {
@@ -20,6 +19,13 @@ exports.register = async (req, res) => {
   if (existingUser) {
     throw new BadRequestError('Email is taken')
   }
+
+  // if user is the first use of the database then make his role to super-admin
+  const count = await User.countDocuments();
+  if (count === 0) {
+    req.body.role = "super-admin";
+  }
+
   const user = await User.create({ ...req.body })
   const token = user.createJWT() //generate token by using user model method
   res.status(StatusCodes.CREATED).json({ user: { name: user.name, email: user.email, role: user.role, address: user.address }, token })
