@@ -4,10 +4,11 @@ const { BadRequestError, UnauthenticatedError } = require('../errors')
 
 //docs: registration
 exports.register = async (req, res) => {
-
-  const { name, email, password } = req.body;
-  if (!name.trim()) {
-    throw new BadRequestError('Please provide name')
+  const { name, email, password, phone, address } = req.body;
+  
+  // Validation checks
+  if (!name || name.trim().length < 3) {
+    throw new BadRequestError('Please provide a valid name (min 3 characters)')
   }
   if (!email) {
     throw new BadRequestError('Please provide email')
@@ -15,20 +16,42 @@ exports.register = async (req, res) => {
   if (!password || password.length < 6) {
     throw new BadRequestError('Password must be at least 6 characters long')
   }
-  const existingUser = await User.findOne({ email });
+  if (!phone) {
+    throw new BadRequestError('Please provide phone number')
+  }
+
+  // Check for existing user
+  const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
   if (existingUser) {
-    throw new BadRequestError('Email is taken')
+    throw new BadRequestError('Email or phone number is already registered')
   }
 
-  // if user is the first use of the database then make his role to super-admin
+  // First user becomes super-admin
   const count = await User.countDocuments();
-  if (count === 0) {
-    req.body.role = "super-admin";
-  }
+  const role = count === 0 ? "super-admin" : "user";
 
-  const user = await User.create({ ...req.body })
-  const token = user.createJWT() //generate token by using user model method
-  res.status(StatusCodes.CREATED).json({ user: { name: user.name, email: user.email, role: user.role, address: user.address }, token })
+  // Create user
+  const user = await User.create({ 
+    name, 
+    email, 
+    password, 
+    phone, 
+    address: address || '', 
+    role 
+  });
+
+  // Generate token
+  const token = user.createJWT();
+  
+  res.status(StatusCodes.CREATED).json({ 
+    user: { 
+      name: user.name, 
+      email: user.email, 
+      role: user.role, 
+      address: user.address 
+    }, 
+    token 
+  });
 };
 
 //docs: login 
@@ -74,29 +97,38 @@ exports.secret = async (req, res) => {
 
 // docs: update profile 
 exports.updateProfile = async (req, res) => {
+    const { name, password, address, phone } = req.body;
+    const user = await User.findById(req.user._id);
 
-    const { name, password, address } = req.body;
-    const user = await User.findById(req.user._id); //req.user._id comes from authmiddleware
-
-
-    // check password length
-    if (password && password.length < 6) {
-     throw new BadRequestError('Password must be at least 6 characters long')
+    // Validate inputs
+    if (name && (name.trim().length < 3 || name.trim().length > 50)) {
+        throw new BadRequestError('Name must be between 3 and 50 characters')
     }
 
+    // Check password length if provided
+    if (password && password.length < 6) {
+        throw new BadRequestError('Password must be at least 6 characters long')
+    }
+
+    // Update user fields
     user.name = name || user.name;
     user.address = address || user.address;
-    user.password = password || user.password;
+    user.phone = phone || user.phone;
+    
+    // Only update password if provided
+    if (password) {
+        user.password = password;
+    }
 
-    const updated= await user.save();
+    const updated = await user.save();
 
     res.status(StatusCodes.OK).json({
-      name: updated.name,
-      email: updated.email,
-      address: updated.address,
-      role: updated.role,
+        name: updated.name,
+        email: updated.email,
+        address: updated.address,
+        phone: updated.phone,
+        role: updated.role,
     });
-
 };
 
 // docs: get all users for admin purpose
@@ -109,29 +141,26 @@ exports.getAllUsers = async (req, res) => {
 
 // docs: update role
 exports.updateRole = async (req, res) => {
-
     const { email, setRole } = req.body;
+    
+    // Validate role
+    const validRoles = ["super-admin", "admin", "warehouse-manager", "delivery-man", "checkpoint-manager", "user"];
+    if (!validRoles.includes(setRole)) {
+        throw new BadRequestError("Invalid role");
+    }
+
     const user = await User.findOne({ email: email });
     if (!user) {
       throw new BadRequestError("User not found");
     }
-    if (setRole === "admin") {
-      const updated = await User.findByIdAndUpdate(
-        user._id,
-        {
-          role: 1,
-        },
-        { new: true }
-      );
-      res.status(StatusCodes.OK).json(updated);
-    } else {
-      const updated = await User.findByIdAndUpdate(
-        user._id,
-        {
-          role: 0,
-        },
-        { new: true }
-      );
-      res.json(updated);
-    }
-}
+
+    // Update user role
+    user.role = setRole;
+    const updated = await user.save();
+    
+    res.status(StatusCodes.OK).json({
+      name: updated.name,
+      email: updated.email,
+      role: updated.role
+    });
+};
